@@ -5,5 +5,3 @@ monitor_task:
   expected_output: >
     All devices and their IP address in a table
   agent: monitor
-
-
