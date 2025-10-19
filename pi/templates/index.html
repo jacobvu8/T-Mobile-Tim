@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local LLM Chat</title>
+  <!-- Using Tailwind CSS for styling from a CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-800 text-white font-sans flex flex-col h-screen">
+
+  <header class="bg-gray-900 text-center p-4 border-b border-gray-700">
+    <h1 class="text-2xl font-bold">Offline AI Assistant</h1>
+    <p class="text-sm text-gray-400">Powered by a local LLM on your Raspberry Pi</p>
+  </header>
+
+  <!-- Container for chat messages -->
+  <div id="chat-container" class="flex-1 overflow-y-auto p-6 space-y-4">
+    <!-- A welcome message -->
+    <div class="flex items-end justify-start">
+      <div class="px-4 py-2 rounded-lg max-w-xl break-words bg-gray-700 text-white">
+        Hello! I'm running completely offline. Ask me anything.
+      </div>
+    </div>
+    <!-- Chat messages will be dynamically added here -->
+  </div>
+
+  <!-- The form for user input -->
+  <form id="chat-form" class="p-4 bg-gray-900 border-t border-gray-700">
+    <div class="flex items-center max-w-3xl mx-auto">
+      <input type="text" id="prompt-input" placeholder="Type your message..." autocomplete="off"
+        class="flex-1 p-3 rounded-l-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+      <button type="submit" id="send-button"
+        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-r-lg transition">
+        Send
+      </button>
+    </div>
+  </form>
+
+  <script>
+    const chatForm = document.getElementById('chat-form');
+    const promptInput = document.getElementById('prompt-input');
+    const chatContainer = document.getElementById('chat-container');
+    const sendButton = document.getElementById('send-button');
+
+    // Listen for form submission
+    chatForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const prompt = promptInput.value.trim();
+      if (!prompt) return;
+
+      // Disable form while waiting for response
+      promptInput.disabled = true;
+      sendButton.disabled = true;
+
+      // Display the user's message immediately
+      appendMessage(prompt, 'user');
+      promptInput.value = '';
+
+      // Show a "thinking" indicator for the AI
+      const thinkingIndicator = appendMessage('...', 'ai', true);
+
+      try {
+        // Send the prompt to the Flask backend
+        const response = await fetch('/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prompt: prompt }),
+        });
+
+        const data = await response.json();
+
+        // Remove the "thinking" indicator
+        thinkingIndicator.remove();
+
+        if (!response.ok) {
+          // Display error message from the server
+          throw new Error(data.response || 'An unknown error occurred.');
+        }
+
+        // Display the AI's actual response
+        appendMessage(data.response, 'ai');
+
+      } catch (error) {
+        console.error('Error:', error);
+        thinkingIndicator.remove();
+        // Display a user-friendly error message in the chat
+        appendMessage(`Sorry, something went wrong: ${error.message}`, 'ai-error');
+      } finally {
+        // Re-enable the form
+        promptInput.disabled = false;
+        sendButton.disabled = false;
+        promptInput.focus();
+      }
+    });
+
+    /**
+     * Appends a message to the chat container.
+     * @param {string} text - The message text.
+     * @param {string} sender - 'user', 'ai', or 'ai-error'.
+     * @param {boolean} isThinking - If true, adds a pulsing animation.
+     * @returns {HTMLElement} The created message element.
+     */
+    function appendMessage(text, sender, isThinking = false) {
+      const messageWrapper = document.createElement('div');
+      const messageBubble = document.createElement('div');
+
+      messageWrapper.classList.add('flex', 'items-end', 'w-full');
+      messageBubble.classList.add('px-4', 'py-2', 'rounded-lg', 'max-w-xl', 'break-words');
+
+      // Style messages based on the sender
+      if (sender === 'user') {
+        messageWrapper.classList.add('justify-end');
+        messageBubble.classList.add('bg-blue-600', 'text-white');
+      } else if (sender === 'ai-error') {
+        messageWrapper.classList.add('justify-start');
+        messageBubble.classList.add('bg-red-500', 'text-white');
+      } else { // 'ai'
+        messageWrapper.classList.add('justify-start');
+        messageBubble.classList.add('bg-gray-700', 'text-white');
+        if (isThinking) {
+          messageBubble.classList.add('animate-pulse');
+        }
+      }
+
+      messageBubble.textContent = text;
+
+      messageWrapper.appendChild(messageBubble);
+      chatContainer.appendChild(messageWrapper);
+
+      // Automatically scroll to the newest message
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      return messageWrapper;
+    }
+  </script>
+</body>
+
+</html>
