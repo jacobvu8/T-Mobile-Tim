@@ -37,6 +37,33 @@ class Monitoragent():
             config=self.tasks_config['monitor_task'], # type: ignore[index]
             function = self.detect_connected_devices
         )
+    
+    def detect_connected_devices(self):
+        """Detect connected devices on the local network"""
+        try:
+            # Run 'arp -a' to get a list of connected devices
+            result = subprocess.run(['arp', '-a'], capture_output=True, text=True)
+            lines = result.stdout.splitlines()
+
+            devices = []
+            for line in lines:
+                match = re.match(r'(\S+)\s+(\S+)\s+(\S+)', line)
+                if match:
+                    hostname, ip, mac = match.groups()
+                    devices.append({"Hostname": hostname, "IP": ip, "MAC": mac})
+
+            if not devices:
+                return "No connected devices detected."
+
+            # Format as markdown table for CrewAI’s report
+            table = "| Hostname | IP Address | MAC Address |\n|-----------|-------------|--------------|\n"
+            for d in devices:
+                table += f"| {d['Hostname']} | {d['IP']} | {d['MAC']} |\n"
+
+            return table
+
+        except Exception as e:
+            return f"Error while detecting devices: {e}"
 
     @crew
     def crew(self) -> Crew:
